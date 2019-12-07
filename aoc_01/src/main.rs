@@ -1,35 +1,26 @@
 use std::fs::File;
 use std::io::Read;
-use std::iter::from_fn;
+use std::iter::successors;
 
 fn main() {
     let mut file = File::open("input.txt").expect("unable to open input.txt");
     let v = read_input(&mut file).expect("parse error");
 
-    let total: u32 = v.iter().map(|&x| fuel(x)).sum();
+    let total: u32 = v.iter().filter_map(|&x| fuel(x)).sum();
     println!("Total fuel: {}", total);
 
     let real_total: u32 = v.iter().map(|&x| fuel_of_fuel(x)).sum();
     println!("Total fuel of fuel: {}", real_total);
 }
 
-fn fuel(mass: u32) -> u32 {
-    (mass / 3).saturating_sub(2)
+fn fuel(mass: u32) -> Option<u32> {
+    (mass / 3).checked_sub(2)
 }
 
 fn fuel_of_fuel(mass: u32) -> u32 {
-    let mut current_mass = mass;
-
-    from_fn(move || {
-        let current_fuel = fuel(current_mass);
-        if current_fuel == 0 {
-            None
-        } else {
-            current_mass = current_fuel;
-            Some(current_fuel)
-        }
-    })
-    .sum()
+    successors(Some(mass), |&current_mass| fuel(current_mass))
+        .skip(1)
+        .sum()
 }
 
 fn read_input<R: Read>(input: &mut R) -> Result<Vec<u32>, String> {
@@ -53,10 +44,9 @@ mod test {
 
     #[test]
     fn problem_part1() {
-        assert_eq!(fuel(12), 2);
-        assert_eq!(fuel(14), 2);
-        assert_eq!(fuel(1969), 654);
-        assert_eq!(fuel(100_756), 33583);
+        for case in [(12, 2), (14, 2), (1969, 654), (100_756, 33583)].iter() {
+            assert_eq!(fuel(case.0), Some(case.1));
+        }
     }
 
     #[test]
