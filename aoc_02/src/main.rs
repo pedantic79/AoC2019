@@ -12,18 +12,25 @@ fn main() {
     assert_eq!(run_program(&v), 10_566_835);
     println!("Output: {}", run_program(&v));
 
-    while run_program(&v) <= TARGET {
-        v[1] += 1;
-    }
-    v[1] -= 1;
+    v[2] = 0;
+    let noun = (0..99)
+        .rev()
+        .find(|&noun| {
+            v[1] = noun;
+            run_program(&v) <= TARGET
+        })
+        .expect("no valid nouns found");
 
-    while run_program(&v) <= TARGET {
-        v[2] += 1;
-    }
-    v[2] -= 1;
+    let verb = (0..99)
+        .rev()
+        .find(|&noun| {
+            v[2] = noun;
+            run_program(&v) == TARGET
+        })
+        .expect("no valid verbs found");
 
     assert_eq!(run_program(&v), TARGET);
-    println!("Noun Verb: {}", v[1] * 100 + v[2]);
+    println!("Noun Verb: {}", noun * 100 + verb);
 }
 
 fn read_input<R: Read>(input: &mut R) -> Result<Vec<usize>, String> {
@@ -43,11 +50,9 @@ fn read_input<R: Read>(input: &mut R) -> Result<Vec<usize>, String> {
 }
 
 fn run_program(input: &[usize]) -> usize {
-    // Clone the slice
-    let mut opcodes = vec![0; input.len()];
-    opcodes.clone_from_slice(input);
-
+    let mut opcodes = input.to_vec();
     let mut pos = 0;
+
     loop {
         match opcodes[pos] {
             op @ 1 | op @ 2 => {
