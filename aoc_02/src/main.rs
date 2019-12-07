@@ -49,7 +49,7 @@ fn read_input<R: Read>(input: &mut R) -> Result<Vec<usize>, String> {
         .collect::<Result<_, _>>()
 }
 
-fn run_program(input: &[usize]) -> usize {
+fn run_ops(input: &[usize], return_pos: usize) -> usize {
     let mut opcodes = input.to_vec();
     let mut pos = 0;
 
@@ -66,11 +66,16 @@ fn run_program(input: &[usize]) -> usize {
                     opcodes[a] * opcodes[b]
                 };
             }
-            99 => return opcodes[0],
+            99 => return opcodes[return_pos],
             x => unreachable!("opcode unknown: {}", x),
         }
         pos += 4;
     }
+}
+
+#[inline]
+fn run_program(input: &[usize]) -> usize {
+    run_ops(input, 0)
 }
 
 #[cfg(test)]
@@ -97,5 +102,19 @@ mod test {
     #[test]
     fn sample_1() {
         assert_eq!(run_program(&[1, 0, 0, 0, 99]), 2);
+    }
+
+    #[test]
+    fn advanced() {
+        for case in [
+            (&[2, 4, 4, 5, 99, 0][..], 5, 9801),
+            (&[2, 3, 0, 3, 99][..], 3, 6),
+            (&[1, 1, 1, 4, 99, 5, 6, 0, 99][..], 0, 30),
+            (&[1, 1, 1, 4, 99, 5, 6, 0, 99][..], 4, 2),
+        ]
+        .iter()
+        {
+            assert_eq!(run_ops(case.0, case.1), case.2);
+        }
     }
 }
