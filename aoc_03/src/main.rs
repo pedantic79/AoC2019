@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use std::fs::File;
 use std::iter::successors;
 use std::str::FromStr;
@@ -76,7 +77,7 @@ fn process<R: std::io::Read>(input: &mut R) -> Option<(Grid, usize)> {
     let wire1 = Grid(0, 0).wire(&v[0]);
     let wire2 = Grid(0, 0).wire(&v[1]);
 
-    let intersections = intersect(&wire1, &wire2).collect::<Vec<_>>();
+    let intersections = intersect(&wire1, &wire2);
 
     let closest = intersections
         .iter()
@@ -93,10 +94,15 @@ fn process<R: std::io::Read>(input: &mut R) -> Option<(Grid, usize)> {
     ))
 }
 
-fn intersect<'a>(one: &'a [Grid], two: &'a [Grid]) -> impl Iterator<Item = Grid> + 'a {
-    one.iter()
-        .flat_map(move |grid| two.iter().filter(move |&x| x == grid))
-        .copied()
+fn intersect<'a>(one: &'a [Grid], two: &'a [Grid]) -> Vec<Grid> {
+    one.par_iter()
+        .flat_map(|grid| {
+            two.iter()
+                .filter(move |&x| x == grid)
+                .copied()
+                .collect::<Vec<Grid>>()
+        })
+        .collect()
 }
 
 fn read_input<R: std::io::Read>(input: &mut R) -> Result<Vec<Vec<DirectionalVector>>, String> {
@@ -249,8 +255,7 @@ mod test {
             intersect(
                 &[Grid(0, 0), Grid(1, 0), Grid(2, 0)],
                 &[Grid(0, 0), Grid(1, 0), Grid(4, 0)]
-            )
-            .collect::<Vec<_>>(),
+            ),
             vec![Grid(0, 0), Grid(1, 0)]
         )
     }
