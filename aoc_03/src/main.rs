@@ -1,4 +1,4 @@
-use rayon::prelude::*;
+use std::collections::HashMap;
 use std::fs::File;
 use std::iter::successors;
 use std::str::FromStr;
@@ -34,7 +34,7 @@ impl FromStr for DirectionalVector {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 struct Grid(i32, i32);
 
 impl Grid {
@@ -74,35 +74,25 @@ fn process<R: std::io::Read>(input: &mut R) -> Option<(Grid, usize)> {
     let v = read_input(input).expect("parse error");
     assert_eq!(v.len(), 2);
 
-    let wire1 = Grid(0, 0).wire(&v[0]);
-    let wire2 = Grid(0, 0).wire(&v[1]);
+    let w1hm = Grid(0, 0)
+        .wire(&v[0])
+        .into_iter()
+        .enumerate()
+        .map(|(a, b)| (b, a))
+        .collect::<HashMap<Grid, usize>>();
 
-    let intersections = intersect(&wire1, &wire2);
-
-    let closest = intersections
-        .iter()
-        .map(|intersection| {
-            let a = wire1.iter().position(|g| g == intersection).unwrap();
-            let b = wire2.iter().position(|g| g == intersection).unwrap();
-            a + b + 2
-        })
-        .min()?;
+    let intersections: Vec<_> = Grid(0, 0)
+        .wire(&v[1])
+        .into_iter()
+        .enumerate()
+        .filter(|(_, grid)| w1hm.contains_key(grid))
+        .map(|(length, grid)| (grid, length + w1hm.get(&grid).unwrap() + 2))
+        .collect();
 
     Some((
-        intersections.into_iter().min_by_key(|g| g.distance())?,
-        closest,
+        intersections.iter().min_by_key(|(g, _)| g.distance())?.0,
+        intersections.iter().min_by_key(|(_, d)| d)?.1,
     ))
-}
-
-fn intersect<'a>(one: &'a [Grid], two: &'a [Grid]) -> Vec<Grid> {
-    one.par_iter()
-        .flat_map(|grid| {
-            two.iter()
-                .filter(move |&x| x == grid)
-                .copied()
-                .collect::<Vec<Grid>>()
-        })
-        .collect()
 }
 
 fn read_input<R: std::io::Read>(input: &mut R) -> Result<Vec<Vec<DirectionalVector>>, String> {
@@ -246,17 +236,6 @@ mod test {
                 Grid(-1, 0),
                 Grid(-1, -1)
             ]
-        )
-    }
-
-    #[test]
-    fn intersection() {
-        assert_eq!(
-            intersect(
-                &[Grid(0, 0), Grid(1, 0), Grid(2, 0)],
-                &[Grid(0, 0), Grid(1, 0), Grid(4, 0)]
-            ),
-            vec![Grid(0, 0), Grid(1, 0)]
         )
     }
 }
