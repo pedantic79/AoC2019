@@ -38,6 +38,15 @@ fn get(opcodes: &[i32], mode: char, pos: usize) -> usize {
     }
 }
 
+fn get_multiple(opcodes: &[i32], modes: &str, pos: usize, count: usize) -> Vec<usize> {
+    let v: Vec<_> = (0..count)
+        .zip(modes.chars().rev())
+        .map(|(offset, mode)| get(opcodes, mode, pos + offset + 1))
+        .collect();
+    assert_eq!(v.len(), count);
+    v
+}
+
 fn run_ops(instructions: &[i32], input: i32, return_pos: usize) -> i32 {
     let mut opcodes = instructions.to_vec();
     let mut pos = 0;
@@ -47,42 +56,38 @@ fn run_ops(instructions: &[i32], input: i32, return_pos: usize) -> i32 {
         let mode_instruction = format!("{:05}", opcodes[pos]);
         // println!("PC:{:02} INS:{} MEM:{:?}", pos, mode_instruction, opcodes);
 
-        let mode_op = &mode_instruction[3..];
-        let mode_1 = mode_instruction.chars().nth(2).unwrap();
-        let mode_2 = mode_instruction.chars().nth(1).unwrap();
-        let mode_3 = mode_instruction.chars().nth(0).unwrap();
+        let modes = &mode_instruction[..3];
 
-        let increment = match mode_op {
-            op @ "01" | op @ "02" => {
-                let a = get(&opcodes, mode_1, pos + 1);
-                let b = get(&opcodes, mode_2, pos + 2);
-                let c = get(&opcodes, mode_3, pos + 3);
-
-                opcodes[c] = if op == "01" {
-                    opcodes[a] + opcodes[b]
-                } else {
-                    opcodes[a] * opcodes[b]
-                };
+        let increment = match &mode_instruction[3..] {
+            "01" => {
+                // ADD
+                let v = get_multiple(&opcodes, modes, pos, 3);
+                opcodes[v[2]] = opcodes[v[0]] + opcodes[v[1]];
+                4
+            }
+            "02" => {
+                // MULT
+                let v = get_multiple(&opcodes, modes, pos, 3);
+                opcodes[v[2]] = opcodes[v[0]] * opcodes[v[1]];
                 4
             }
             "03" => {
                 // STORE INPUT
-                let a = get(&opcodes, mode_1, pos + 1);
-                opcodes[a] = input;
+                let v = get_multiple(&opcodes, modes, pos, 1);
+                opcodes[v[0]] = input;
                 2
             }
             "04" => {
                 // OUTPUT
-                let a = get(&opcodes, mode_1, pos + 1);
-                output = Some(opcodes[a]);
+                let v = get_multiple(&opcodes, modes, pos, 1);
+                output = Some(opcodes[v[0]]);
                 2
             }
             "05" => {
                 // jump if true
-                let a = get(&opcodes, mode_1, pos + 1);
-                let b = get(&opcodes, mode_2, pos + 2);
-                if opcodes[a] != 0 {
-                    pos = opcodes[b] as usize;
+                let v = get_multiple(&opcodes, modes, pos, 2);
+                if opcodes[v[0]] != 0 {
+                    pos = opcodes[v[1]] as usize;
                     0
                 } else {
                     3
@@ -90,10 +95,9 @@ fn run_ops(instructions: &[i32], input: i32, return_pos: usize) -> i32 {
             }
             "06" => {
                 // jump if false
-                let a = get(&opcodes, mode_1, pos + 1);
-                let b = get(&opcodes, mode_2, pos + 2);
-                if opcodes[a] == 0 {
-                    pos = opcodes[b] as usize;
+                let v = get_multiple(&opcodes, modes, pos, 2);
+                if opcodes[v[0]] == 0 {
+                    pos = opcodes[v[1]] as usize;
                     0
                 } else {
                     3
@@ -101,18 +105,14 @@ fn run_ops(instructions: &[i32], input: i32, return_pos: usize) -> i32 {
             }
             "07" => {
                 // less-than
-                let a = get(&opcodes, mode_1, pos + 1);
-                let b = get(&opcodes, mode_2, pos + 2);
-                let c = get(&opcodes, mode_3, pos + 3);
-                opcodes[c] = if opcodes[a] < opcodes[b] { 1 } else { 0 };
+                let v = get_multiple(&opcodes, modes, pos, 3);
+                opcodes[v[2]] = if opcodes[v[0]] < opcodes[v[1]] { 1 } else { 0 };
                 4
             }
             "08" => {
                 // equal
-                let a = get(&opcodes, mode_1, pos + 1);
-                let b = get(&opcodes, mode_2, pos + 2);
-                let c = get(&opcodes, mode_3, pos + 3);
-                opcodes[c] = if opcodes[a] == opcodes[b] { 1 } else { 0 };
+                let v = get_multiple(&opcodes, modes, pos, 3);
+                opcodes[v[2]] = if opcodes[v[0]] == opcodes[v[1]] { 1 } else { 0 };
                 4
             }
             "99" => {
