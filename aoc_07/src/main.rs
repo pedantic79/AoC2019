@@ -14,36 +14,36 @@ fn main() {
         .max();
 
     println!("MAX_AMP: {:?}", max_amp);
-    assert_eq!(max_amp, Some(255_590));
+    debug_assert_eq!(max_amp, Some(255_590));
 
-    let max_feedback = permute::permute(vec![9, 8, 7, 6, 5i32])
+    let max_feedback = permute::permute(vec![9, 8, 7, 6, 5])
         .iter()
         .map(|phases| {
             let mut amps: Vec<_> = phases
                 .iter()
                 .map(|&i| {
                     let mut c = Computer::new(&v);
-                    c.input.push_back(i);
+                    c.input_add(i);
                     c
                 })
                 .collect();
 
             let mut input = 0;
             for (idx, _) in phases.iter().enumerate().cycle() {
-                amps[idx].input.push_back(input);
+                amps[idx].input_add(input);
                 amps[idx].run();
                 if amps[idx].halted {
                     break;
                 }
 
-                input = amps[idx].output.pop_back().unwrap();
+                input = amps[idx].output_get();
             }
             input
         })
         .max();
 
     println!("FEEDBACK: {:?}", max_feedback);
-    assert_eq!(max_feedback, Some(58_285_150))
+    debug_assert_eq!(max_feedback, Some(58_285_150))
 }
 
 fn read_input<R: Read>(input: &mut R) -> Result<Vec<i32>, String> {
@@ -70,9 +70,9 @@ fn run_amplifier(opcodes: &[i32], input: i32, phase: &[i32]) -> i32 {
 
 fn run_program(instructions: &[i32], input: &[i32]) -> i32 {
     let mut c = Computer::new(instructions);
-    c.input.extend(input.iter());
+    c.input_add_all(input.iter());
     c.run();
-    c.output.pop_back().unwrap()
+    c.output_get()
 }
 
 #[cfg(test)]

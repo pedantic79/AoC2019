@@ -4,8 +4,8 @@ use std::collections::VecDeque;
 type Intcode = i32;
 
 pub struct Computer {
-    pub input: VecDeque<Intcode>,
-    pub output: VecDeque<Intcode>,
+    input: VecDeque<Intcode>,
+    output: Vec<Intcode>,
     memory: Vec<Intcode>,
     program_counter: Cell<usize>,
     pub halted: bool,
@@ -15,18 +15,30 @@ impl Computer {
     pub fn new(program: &[Intcode]) -> Self {
         Self {
             input: VecDeque::new(),
-            output: VecDeque::new(),
+            output: Vec::new(),
             memory: program.to_vec(),
             program_counter: Cell::new(0),
             halted: false,
         }
     }
 
+    pub fn input_add(&mut self, input: Intcode) {
+        self.input.push_back(input)
+    }
+
+    pub fn input_add_all<'a, I: IntoIterator<Item = &'a Intcode>>(&mut self, input: I) {
+        self.input.extend(input)
+    }
+
+    pub fn output_get(&mut self) -> Intcode {
+        self.output.pop().unwrap()
+    }
+
     fn read_memory(&self, pos: usize, mode: u8) -> Intcode {
         match mode {
             b'0' => self.memory[self.memory[pos] as usize],
             b'1' => self.memory[pos],
-            x => unreachable!("unknown mode: {}", x),
+            x => unreachable!("unknown mode: {}", x as char),
         }
     }
 
@@ -44,23 +56,25 @@ impl Computer {
         self.program_counter.set(pos);
     }
 
-    fn write_memory(&mut self, modes: &[u8], value: Intcode) {
+    fn write_memory(&mut self, mode: u8, value: Intcode) {
         let pos = self.next_pc();
-        match modes[0] {
+        match mode {
             b'0' => {
                 let a = self.memory[pos] as usize;
                 self.memory[a] = value
             }
             b'1' => self.memory[pos] = value,
-            x => unreachable!("unknown mode (write): {}", x),
+            x => unreachable!("unknown mode (write): {}", x as char),
         }
     }
 
     pub fn run(&mut self) {
         loop {
-            let mode_instruction = format!("{:05}", self.read_instruction())
+            let full_instruction = format!("{:05}", self.read_instruction())
                 .bytes()
                 .collect::<Vec<u8>>();
+
+            assert_eq!(full_instruction.len(), 5);
             // println!(
             //     "PC:{:02} INS:{:?} MEM:{:?} INPUT:{:?} OUTPUT:{:?}",
             //     self.program_counter.get() - 1,
@@ -70,39 +84,46 @@ impl Computer {
             //     self.output
             // );
 
-            let modes = &mode_instruction[..3];
-            let mode_a = modes[2];
-            let mode_b = modes[1];
+            let (mode_c, mode_b, mode_a) = (
+                full_instruction[0],
+                full_instruction[1],
+                full_instruction[2],
+            );
 
-            match std::str::from_utf8(&mode_instruction[3..]).unwrap() {
-                "01" => {
+            let instruction = std::str::from_utf8(&full_instruction[3..])
+                .expect("invalid utf8")
+                .parse()
+                .expect("not a number");
+
+            match instruction {
+                1 => {
                     // ADD
                     let a = self.read_memory(self.next_pc(), mode_a);
                     let b = self.read_memory(self.next_pc(), mode_b);
-                    self.write_memory(modes, a + b);
+                    self.write_memory(mode_c, a + b);
                 }
-                "02" => {
+                2 => {
                     // MULT
                     let a = self.read_memory(self.next_pc(), mode_a);
                     let b = self.read_memory(self.next_pc(), mode_b);
-                    self.write_memory(modes, a * b);
+                    self.write_memory(mode_c, a * b);
                 }
-                "03" => {
+                3 => {
                     // STORE INPUT
                     if self.input.is_empty() {
                         return;
                     }
 
                     let a = self.input.pop_front().unwrap();
-                    self.write_memory(modes, a);
+                    self.write_memory(mode_c, a);
                 }
-                "04" => {
+                4 => {
                     // OUTPUT
                     let a = self.read_memory(self.next_pc(), mode_a);
-                    self.output.push_back(a);
+                    self.output.push(a);
                     return;
                 }
-                "05" => {
+                5 => {
                     // jump if true
                     let a = self.read_memory(self.next_pc(), mode_a);
                     let b = self.read_memory(self.next_pc(), mode_b);
@@ -110,7 +131,7 @@ impl Computer {
                         self.set_pc(b as usize);
                     }
                 }
-                "06" => {
+                6 => {
                     // jump if false
                     let a = self.read_memory(self.next_pc(), mode_a);
                     let b = self.read_memory(self.next_pc(), mode_b);
@@ -118,19 +139,19 @@ impl Computer {
                         self.set_pc(b as usize);
                     }
                 }
-                "07" => {
+                7 => {
                     // less-than
                     let a = self.read_memory(self.next_pc(), mode_a);
                     let b = self.read_memory(self.next_pc(), mode_b);
-                    self.write_memory(modes, if a < b { 1 } else { 0 });
+                    self.write_memory(mode_c, if a < b { 1 } else { 0 });
                 }
-                "08" => {
+                8 => {
                     // equal
                     let a = self.read_memory(self.next_pc(), mode_a);
                     let b = self.read_memory(self.next_pc(), mode_b);
-                    self.write_memory(modes, if a == b { 1 } else { 0 });
+                    self.write_memory(mode_c, if a == b { 1 } else { 0 });
                 }
-                "99" => {
+                99 => {
                     self.halted = true;
                     return;
                 }
@@ -151,7 +172,7 @@ mod test {
             c.input.push_back(case.0);
             c.run();
 
-            assert_eq!(c.output.pop_front().unwrap(), case.1);
+            assert_eq!(c.output_get(), case.1);
         }
     }
 
@@ -165,7 +186,7 @@ mod test {
             ]);
             c.input.push_back(case.0);
             c.run();
-            assert_eq!(c.output.pop_front().unwrap(), case.1);
+            assert_eq!(c.output_get(), case.1);
         }
     }
 }
