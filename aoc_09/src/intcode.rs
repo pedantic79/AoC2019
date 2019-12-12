@@ -1,15 +1,16 @@
+use num::ToPrimitive;
 use std::cell::Cell;
 use std::collections::VecDeque;
 use std::io::Read;
 
-pub type Intcode = i128;
+pub type Intcode = i64;
 
 pub struct Computer {
     input: VecDeque<Intcode>,
     output: Vec<Intcode>,
     memory: Vec<Intcode>,
     program_counter: Cell<usize>,
-    base_offset: usize,
+    base_offset: isize,
     pub halted: bool,
 }
 
@@ -29,6 +30,7 @@ impl Computer {
         self.input.push_back(input)
     }
 
+    #[allow(dead_code)]
     pub fn input_add_all<'a, I: IntoIterator<Item = &'a Intcode>>(&mut self, input: I) {
         self.input.extend(input)
     }
@@ -40,11 +42,12 @@ impl Computer {
     fn write_memory(&mut self, mode: u8, value: Intcode) {
         let pos = self.next_pc();
         let mpos = match mode {
-            b'0' => self.memory[pos] as usize,
+            b'0' => self.memory[pos].to_usize(),
             b'1' => unimplemented!(),
-            b'2' => (self.base_offset as Intcode + self.memory[pos]) as usize,
+            b'2' => (self.base_offset as Intcode + self.memory[pos]).to_usize(),
             x => unreachable!("unknown mode (write): {}", x as char),
-        };
+        }
+        .unwrap();
 
         if mpos >= self.memory.len() {
             self.memory.resize(mpos + 1, 0);
@@ -55,17 +58,15 @@ impl Computer {
     fn read_memory(&self, pos: usize, mode: u8) -> Intcode {
         let mpos = self.memory[pos];
 
-        match mode {
-            b'0' => self.memory.get(mpos as usize),
-            b'1' => self.memory.get(pos),
-            b'2' => {
-                let mpos = self.base_offset as Intcode + mpos;
-                self.memory.get(mpos as usize)
-            }
+        let location = match mode {
+            b'0' => mpos.to_usize(),
+            b'1' => Some(pos),
+            b'2' => (self.base_offset as Intcode + mpos).to_usize(),
             x => unreachable!("unknown mode: {}", x as char),
         }
-        .copied()
-        .unwrap_or(0)
+        .unwrap();
+
+        self.memory.get(location).copied().unwrap_or(0)
     }
 
     fn read_instruction(&self) -> Intcode {
@@ -168,8 +169,8 @@ impl Computer {
                 }
                 9 => {
                     let a = self.read_memory(self.next_pc(), mode_a);
-                    let base = self.base_offset as i128 + a;
-                    self.base_offset = base as usize;
+                    let base = self.base_offset as Intcode + a;
+                    self.base_offset = base as isize;
                 }
                 99 => {
                     self.halted = true;
@@ -197,7 +198,15 @@ pub fn read_input<R: Read>(input: &mut R) -> Result<Vec<Intcode>, String> {
         .collect::<Result<_, _>>()
 }
 
-pub fn run_program(instructions: &[Intcode], input: &[Intcode]) -> Intcode {
+pub fn run_program(instructions: &[Intcode], input: Intcode) -> Intcode {
+    let mut c = Computer::new(instructions);
+    c.input_add(input);
+    c.run();
+    c.output_get()
+}
+
+#[allow(dead_code)]
+pub fn run_program_n(instructions: &[Intcode], input: &[Intcode]) -> Intcode {
     let mut c = Computer::new(instructions);
     c.input_add_all(input.iter());
     c.run();
@@ -230,37 +239,43 @@ mod test {
         ]
         .iter()
         {
-            assert_eq!(run_program(&case.0, &[1]), case.1)
+            assert_eq!(run_program(&case.0, 1), case.1);
+            assert_eq!(run_program(&case.0, 1), run_program_n(&case.0, &[1]));
         }
     }
 
     #[test]
     fn debug() {
-        assert_eq!(run_program(&[109, 1, 203, 2, 204, 2, 99], &[42]), 42)
+        assert_eq!(run_program(&[109, 1, 203, 2, 204, 2, 99], 42), 42);
     }
 
     #[test]
     fn simple_example() {
         for case in [(2, 1), (1, 1), (0, 0)].iter() {
-            let mut c = Computer::new(&[3, 12, 6, 12, 15, 1, 13, 14, 13, 4, 13, 99, -1, 0, 1, 9]);
-            c.input.push_back(case.0);
-            c.run();
-
-            assert_eq!(c.output_get(), case.1);
+            assert_eq!(
+                run_program(
+                    &[3, 12, 6, 12, 15, 1, 13, 14, 13, 4, 13, 99, -1, 0, 1, 9],
+                    case.0,
+                ),
+                case.1
+            );
         }
     }
 
     #[test]
     fn sample_4() {
         for case in [(9, 1001), (8, 1000), (7, 999)].iter() {
-            let mut c = Computer::new(&[
-                3, 21, 1008, 21, 8, 20, 1005, 20, 22, 107, 8, 21, 20, 1006, 20, 31, 1106, 0, 36,
-                98, 0, 0, 1002, 21, 125, 20, 4, 20, 1105, 1, 46, 104, 999, 1105, 1, 46, 1101, 1000,
-                1, 20, 4, 20, 1105, 1, 46, 98, 99,
-            ]);
-            c.input.push_back(case.0);
-            c.run();
-            assert_eq!(c.output_get(), case.1);
+            assert_eq!(
+                run_program(
+                    &[
+                        3, 21, 1008, 21, 8, 20, 1005, 20, 22, 107, 8, 21, 20, 1006, 20, 31, 1106,
+                        0, 36, 98, 0, 0, 1002, 21, 125, 20, 4, 20, 1105, 1, 46, 104, 999, 1105, 1,
+                        46, 1101, 1000, 1, 20, 4, 20, 1105, 1, 46, 98, 99,
+                    ],
+                    case.0,
+                ),
+                case.1
+            );
         }
     }
 }
