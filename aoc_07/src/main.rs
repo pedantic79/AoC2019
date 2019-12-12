@@ -1,8 +1,7 @@
 mod intcode;
 
-use intcode::Computer;
-use std::fs::File;
-use std::io::Read;
+use intcode::{Computer, Intcode};
+use std::{fs::File, io::Read};
 
 fn main() {
     let mut file = File::open("input.txt").expect("unable to open input.txt");
@@ -46,7 +45,7 @@ fn main() {
     debug_assert_eq!(max_feedback, Some(58_285_150))
 }
 
-fn read_input<R: Read>(input: &mut R) -> Result<Vec<i32>, String> {
+fn read_input<R: Read>(input: &mut R) -> Result<Vec<Intcode>, String> {
     let mut buffer = String::new();
     if let Err(msg) = input.read_to_string(&mut buffer) {
         return Err(msg.to_string());
@@ -62,13 +61,13 @@ fn read_input<R: Read>(input: &mut R) -> Result<Vec<i32>, String> {
         .collect::<Result<_, _>>()
 }
 
-fn run_amplifier(opcodes: &[i32], input: i32, phase: &[i32]) -> i32 {
+fn run_amplifier(opcodes: &[Intcode], input: Intcode, phase: &[Intcode]) -> Intcode {
     phase.iter().fold(input, |next_input, next_phase| {
         run_program(opcodes, &[*next_phase, next_input])
     })
 }
 
-fn run_program(instructions: &[i32], input: &[i32]) -> i32 {
+fn run_program(instructions: &[Intcode], input: &[Intcode]) -> Intcode {
     let mut c = Computer::new(instructions);
     c.input_add_all(input.iter());
     c.run();

@@ -1,7 +1,7 @@
 use std::cell::Cell;
 use std::collections::VecDeque;
 
-type Intcode = i32;
+pub type Intcode = i128;
 
 pub struct Computer {
     input: VecDeque<Intcode>,
@@ -34,6 +34,18 @@ impl Computer {
         self.output.pop().unwrap()
     }
 
+    fn write_memory(&mut self, mode: u8, value: Intcode) {
+        let pos = self.next_pc();
+        match mode {
+            b'0' => {
+                let a = self.memory[pos] as usize;
+                self.memory[a] = value
+            }
+            b'1' => self.memory[pos] = value,
+            x => unreachable!("unknown mode (write): {}", x as char),
+        }
+    }
+
     fn read_memory(&self, pos: usize, mode: u8) -> Intcode {
         match mode {
             b'0' => self.memory[self.memory[pos] as usize],
@@ -54,18 +66,6 @@ impl Computer {
 
     fn set_pc(&self, pos: usize) {
         self.program_counter.set(pos);
-    }
-
-    fn write_memory(&mut self, mode: u8, value: Intcode) {
-        let pos = self.next_pc();
-        match mode {
-            b'0' => {
-                let a = self.memory[pos] as usize;
-                self.memory[a] = value
-            }
-            b'1' => self.memory[pos] = value,
-            x => unreachable!("unknown mode (write): {}", x as char),
-        }
     }
 
     pub fn run(&mut self) {
