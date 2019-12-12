@@ -1,5 +1,6 @@
 use std::cell::Cell;
 use std::collections::VecDeque;
+use std::io::Read;
 
 pub type Intcode = i128;
 
@@ -8,6 +9,7 @@ pub struct Computer {
     output: Vec<Intcode>,
     memory: Vec<Intcode>,
     program_counter: Cell<usize>,
+    base_offset: usize,
     pub halted: bool,
 }
 
@@ -19,6 +21,7 @@ impl Computer {
             memory: program.to_vec(),
             program_counter: Cell::new(0),
             halted: false,
+            base_offset: 0,
         }
     }
 
@@ -36,22 +39,33 @@ impl Computer {
 
     fn write_memory(&mut self, mode: u8, value: Intcode) {
         let pos = self.next_pc();
-        match mode {
-            b'0' => {
-                let a = self.memory[pos] as usize;
-                self.memory[a] = value
-            }
-            b'1' => self.memory[pos] = value,
+        let mpos = match mode {
+            b'0' => self.memory[pos] as usize,
+            b'1' => unimplemented!(),
+            b'2' => (self.base_offset as Intcode + self.memory[pos]) as usize,
             x => unreachable!("unknown mode (write): {}", x as char),
+        };
+
+        if mpos >= self.memory.len() {
+            self.memory.resize(mpos + 1, 0);
         }
+        self.memory[mpos] = value;
     }
 
     fn read_memory(&self, pos: usize, mode: u8) -> Intcode {
+        let mpos = self.memory[pos];
+
         match mode {
-            b'0' => self.memory[self.memory[pos] as usize],
-            b'1' => self.memory[pos],
+            b'0' => self.memory.get(mpos as usize),
+            b'1' => self.memory.get(pos),
+            b'2' => {
+                let mpos = self.base_offset as Intcode + mpos;
+                self.memory.get(mpos as usize)
+            }
             x => unreachable!("unknown mode: {}", x as char),
         }
+        .copied()
+        .unwrap_or(0)
     }
 
     fn read_instruction(&self) -> Intcode {
@@ -76,9 +90,10 @@ impl Computer {
 
             assert_eq!(full_instruction.len(), 5);
             // println!(
-            //     "PC:{:02} INS:{:?} MEM:{:?} INPUT:{:?} OUTPUT:{:?}",
+            //     "PC:{:02} BO:{} INS:{:?} MEM:{:?} IN:{:?} OUT:{:?}",
             //     self.program_counter.get() - 1,
-            //     std::str::from_utf8(&mode_instruction).unwrap(),
+            //     self.base_offset,
+            //     std::str::from_utf8(&full_instruction).unwrap(),
             //     self.memory,
             //     self.input,
             //     self.output
@@ -115,7 +130,7 @@ impl Computer {
                     }
 
                     let a = self.input.pop_front().unwrap();
-                    self.write_memory(mode_c, a);
+                    self.write_memory(mode_a, a);
                 }
                 4 => {
                     // OUTPUT
@@ -151,6 +166,11 @@ impl Computer {
                     let b = self.read_memory(self.next_pc(), mode_b);
                     self.write_memory(mode_c, if a == b { 1 } else { 0 });
                 }
+                9 => {
+                    let a = self.read_memory(self.next_pc(), mode_a);
+                    let base = self.base_offset as i128 + a;
+                    self.base_offset = base as usize;
+                }
                 99 => {
                     self.halted = true;
                     return;
@@ -161,9 +181,63 @@ impl Computer {
     }
 }
 
+pub fn read_input<R: Read>(input: &mut R) -> Result<Vec<Intcode>, String> {
+    let mut buffer = String::new();
+    if let Err(msg) = input.read_to_string(&mut buffer) {
+        return Err(msg.to_string());
+    }
+
+    buffer
+        .split(',')
+        .map(|s| s.trim())
+        .map(|s| {
+            s.parse::<_>()
+                .map_err(|e: std::num::ParseIntError| format!("{}: {}", e, s))
+        })
+        .collect::<Result<_, _>>()
+}
+
+pub fn run_program(instructions: &[Intcode], input: &[Intcode]) -> Intcode {
+    let mut c = Computer::new(instructions);
+    c.input_add_all(input.iter());
+    c.run();
+    c.output_get()
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn parsing_file() {
+        let mut input: &[u8] = b"123, 9,45678 ,12,234,2,3,4";
+        assert_eq!(
+            read_input(&mut input),
+            Ok(vec![123, 9, 45678, 12, 234, 2, 3, 4])
+        );
+    }
+
+    #[test]
+    fn reddit() {
+        for case in [
+            (vec![109, -1, 4, 1, 99], -1),
+            (vec![109, -1, 104, 1, 99], 1),
+            (vec![109, -1, 204, 1, 99], 109),
+            (vec![109, 1, 9, 2, 204, -6, 99], 204),
+            (vec![109, 1, 109, 9, 204, -6, 99], 204),
+            (vec![109, 1, 209, -1, 204, -106, 99], 204),
+            (vec![109, 1, 3, 3, 204, 2, 99], 1),
+        ]
+        .iter()
+        {
+            assert_eq!(run_program(&case.0, &[1]), case.1)
+        }
+    }
+
+    #[test]
+    fn debug() {
+        assert_eq!(run_program(&[109, 1, 203, 2, 204, 2, 99], &[42]), 42)
+    }
 
     #[test]
     fn simple_example() {
