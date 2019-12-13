@@ -1,5 +1,6 @@
+use multimap::MultiMap;
 use num::Integer;
-use std::collections::{HashMap, HashSet};
+// use std::collections::{HashMap, HashSet};
 
 type Int = i64;
 
@@ -47,11 +48,11 @@ fn main() {
     debug_assert_eq!(station.len(), 344);
 }
 
-fn get_directions(station: &Asteroid, asteroids: &[Asteroid]) -> HashSet<Direction> {
+fn get_directions(station: &Asteroid, asteroids: &[Asteroid]) -> MultiMap<Direction, Asteroid> {
     asteroids
         .iter()
         .filter(|a| *a != station)
-        .map(|a| a.get_direction(station))
+        .map(|a| (a.get_direction(station), *a))
         .collect()
 }
 
