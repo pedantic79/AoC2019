@@ -1,13 +1,20 @@
 use multimap::MultiMap;
 use num::Integer;
-// use std::collections::{HashMap, HashSet};
+use std::f64::consts::PI;
+use std::fmt;
 
 type Int = i64;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct Asteroid {
     x: Int,
     y: Int,
+}
+
+impl fmt::Display for Asteroid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
 }
 
 impl Asteroid {
@@ -31,29 +38,62 @@ impl Asteroid {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Ord)]
 struct Direction(Int, Int);
+
+impl PartialOrd for Direction {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.angle().partial_cmp(&other.angle())
+    }
+}
+
+impl Direction {
+    fn angle(&self) -> f64 {
+        let radians = (self.1 as f64).atan2(self.0 as f64) - PI / 2.0;
+        if radians.is_sign_negative() {
+            radians + PI * 2.0
+        } else {
+            radians
+        }
+    }
+}
 
 fn main() {
     let mut file = std::fs::File::open("input.txt").expect("unable to open input.txt");
     let asteroids = read_input(&mut file).unwrap();
 
-    let station = asteroids
+    let (station, mut visible) = asteroids
         .iter()
         .map(|station| get_directions(station, &asteroids))
-        .max_by_key(|station| station.len())
+        .max_by_key(|(_, directions)| directions.len())
         .unwrap();
 
-    println!("Visible: {:?}", station.len());
-    debug_assert_eq!(station.len(), 344);
+    println!("Station {} sees {} asteroids", station, visible.len());
+    debug_assert_eq!(visible.len(), 344);
+
+    let mut v = visible.keys().copied().collect::<Vec<Direction>>();
+    v.sort();
+
+    let v = visible.get_vec_mut(&v[199]).unwrap();
+    v.sort_by_key(|x| x.distance(&station));
+    let answer = v[0].x * 100 + v[0].y;
+
+    println!("200th asteroid destroyed: {} answer: {}", v[0], answer);
+    debug_assert_eq!(answer, 2732);
 }
 
-fn get_directions(station: &Asteroid, asteroids: &[Asteroid]) -> MultiMap<Direction, Asteroid> {
-    asteroids
-        .iter()
-        .filter(|a| *a != station)
-        .map(|a| (a.get_direction(station), *a))
-        .collect()
+fn get_directions(
+    station: &Asteroid,
+    asteroids: &[Asteroid],
+) -> (Asteroid, MultiMap<Direction, Asteroid>) {
+    (
+        *station,
+        asteroids
+            .iter()
+            .filter(|a| *a != station)
+            .map(|a| (a.get_direction(station), *a))
+            .collect(),
+    )
 }
 
 fn read_input<R: std::io::Read>(input: &mut R) -> Result<Vec<Asteroid>, String> {
