@@ -128,10 +128,19 @@ impl Robot {
 }
 
 fn draw_output(image: &HashMap<Point, Color>) {
-    let min_x = image.keys().map(|Point(x, _)| x).min().unwrap();
-    let min_y = image.keys().map(|Point(_, y)| y).min().unwrap();
-    let max_x = image.keys().map(|Point(x, _)| x).max().unwrap();
-    let max_y = image.keys().map(|Point(_, y)| y).max().unwrap();
+    let (min_x, min_y, max_x, max_y) = image
+        .keys()
+        .fold(
+            None,
+            |acc: Option<(isize, isize, isize, isize)>, &Point(x, y)| {
+                if let Some((min_x, min_y, max_x, max_y)) = acc {
+                    Some((min_x.min(x), min_y.min(y), max_x.max(x), max_y.max(y)))
+                } else {
+                    Some((x, y, x, y))
+                }
+            },
+        )
+        .unwrap();
 
     let x = (max_x - min_x) as usize + 1;
     let y = (max_y - min_y) as usize + 1;
@@ -140,8 +149,8 @@ fn draw_output(image: &HashMap<Point, Color>) {
 
     for (r, row) in output.iter_mut().enumerate() {
         for (c, cell) in row.iter_mut().enumerate() {
-            let old_r = r as isize + *min_y;
-            let old_c = c as isize + *min_x;
+            let old_r = r as isize + min_y;
+            let old_c = c as isize + min_x;
             if let Some(color) = image.get(&Point(old_c, old_r)) {
                 if *color == 1 {
                     *cell = '█';
