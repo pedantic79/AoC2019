@@ -1,8 +1,36 @@
 use itertools::{izip, Itertools};
 use num::Integer;
-use std::cmp::Ordering;
+use std::{cmp::Ordering, fs::File, io::Read, num::ParseIntError, slice::from_raw_parts_mut};
 
 const DIMENSIONS: usize = 3;
+
+trait PhysicsSimulation {
+    type Body;
+
+    fn simulate(&mut self) {
+        let len = self.data().len() as isize;
+
+        for indices in (0..len).combinations(2) {
+            assert_eq!(indices.len(), 2);
+            assert_ne!(indices[0], indices[1]);
+            let (one, two) = unsafe {
+                let ptr = self.data().as_mut_ptr();
+                let one = &mut from_raw_parts_mut(ptr.offset(indices[0]), 1)[0];
+                let two = &mut from_raw_parts_mut(ptr.offset(indices[1]), 1)[0];
+                (one, two)
+            };
+            Self::update_position(one, two);
+        }
+
+        for body in self.data().iter_mut() {
+            Self::update_velocity(body);
+        }
+    }
+
+    fn data(&mut self) -> &mut [Self::Body];
+    fn update_position(a: &mut Self::Body, b: &mut Self::Body);
+    fn update_velocity(a: &mut Self::Body);
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct SpaceBody {
@@ -62,6 +90,22 @@ struct SpaceSystem {
     bodies: Vec<SpaceBody>,
 }
 
+impl PhysicsSimulation for SpaceSystem {
+    type Body = SpaceBody;
+
+    fn data(&mut self) -> &mut [Self::Body] {
+        &mut self.bodies
+    }
+
+    fn update_position(a: &mut Self::Body, b: &mut Self::Body) {
+        a.update(b)
+    }
+
+    fn update_velocity(a: &mut Self::Body) {
+        a.apply_velocity();
+    }
+}
+
 impl SpaceSystem {
     fn new(coordinates: &[(i32, i32, i32)]) -> Self {
         let bodies = coordinates
@@ -73,23 +117,7 @@ impl SpaceSystem {
     }
 
     fn step(&mut self) {
-        let len = self.bodies.len() as isize;
-
-        for indices in (0..len).combinations(2) {
-            assert_eq!(indices.len(), 2);
-            assert_ne!(indices[0], indices[1]);
-            let (one, two) = unsafe {
-                let ptr = self.bodies.as_mut_ptr();
-                let one = &mut std::slice::from_raw_parts_mut(ptr.offset(indices[0]), 1)[0];
-                let two = &mut std::slice::from_raw_parts_mut(ptr.offset(indices[1]), 1)[0];
-                (one, two)
-            };
-            one.update(two);
-        }
-
-        for moon in self.bodies.iter_mut() {
-            moon.apply_velocity();
-        }
+        self.simulate();
     }
 
     fn step_n(&mut self, n: usize) {
@@ -122,6 +150,32 @@ struct SingleAxis {
     axis: Vec<(i32, i32)>,
 }
 
+impl PhysicsSimulation for SingleAxis {
+    type Body = (i32, i32);
+
+    fn data(&mut self) -> &mut [Self::Body] {
+        &mut self.axis
+    }
+
+    fn update_position(one: &mut Self::Body, two: &mut Self::Body) {
+        match one.0.cmp(&two.0) {
+            Ordering::Equal => (),
+            Ordering::Less => {
+                one.1 += 1;
+                two.1 -= 1;
+            }
+            Ordering::Greater => {
+                one.1 -= 1;
+                two.1 += 1;
+            }
+        }
+    }
+
+    fn update_velocity(a: &mut Self::Body) {
+        a.0 += a.1;
+    }
+}
+
 impl SingleAxis {
     fn new(axis: &[(i32, i32)]) -> Self {
         Self {
@@ -130,40 +184,13 @@ impl SingleAxis {
     }
 
     fn count_cycle(&self) -> usize {
-        let len = self.axis.len() as isize;
-
-        let mut copy = self.axis.clone();
+        let mut copy = self.clone();
         let mut count = 0;
         loop {
             count += 1;
-            for indices in (0..len).combinations(2) {
-                assert_eq!(indices.len(), 2);
-                assert_ne!(indices[0], indices[1]);
-                let (one, two) = unsafe {
-                    let ptr = copy.as_mut_ptr();
-                    let one = &mut std::slice::from_raw_parts_mut(ptr.offset(indices[0]), 1)[0];
-                    let two = &mut std::slice::from_raw_parts_mut(ptr.offset(indices[1]), 1)[0];
-                    (one, two)
-                };
+            copy.simulate();
 
-                match one.0.cmp(&two.0) {
-                    Ordering::Equal => (),
-                    Ordering::Less => {
-                        one.1 += 1;
-                        two.1 -= 1;
-                    }
-                    Ordering::Greater => {
-                        one.1 -= 1;
-                        two.1 += 1;
-                    }
-                }
-            }
-
-            for ax in copy.iter_mut() {
-                ax.0 += ax.1;
-            }
-
-            if copy == self.axis {
+            if copy.axis == self.axis {
                 break;
             }
         }
@@ -172,7 +199,7 @@ impl SingleAxis {
     }
 }
 
-fn read_input<R: std::io::Read>(input: &mut R) -> Result<Vec<(i32, i32, i32)>, String> {
+fn read_input<R: Read>(input: &mut R) -> Result<Vec<(i32, i32, i32)>, String> {
     let mut buffer = String::new();
     if let Err(msg) = input.read_to_string(&mut buffer) {
         return Err(msg.to_string());
@@ -191,7 +218,7 @@ fn read_input<R: std::io::Read>(input: &mut R) -> Result<Vec<(i32, i32, i32)>, S
                 .map(|s| s.trim())
                 .map(|s| {
                     s.parse::<_>()
-                        .map_err(|e: std::num::ParseIntError| format!("{}: {}", e, s))
+                        .map_err(|e: ParseIntError| format!("{}: {}", e, s))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
@@ -202,7 +229,7 @@ fn read_input<R: std::io::Read>(input: &mut R) -> Result<Vec<(i32, i32, i32)>, S
 }
 
 fn main() {
-    let mut file = std::fs::File::open("input.txt").expect("unable to open input.txt");
+    let mut file = File::open("input.txt").expect("unable to open input.txt");
     let v = read_input(&mut file).unwrap();
     let mut ss = SpaceSystem::new(&v);
     ss.step_n(1000);
