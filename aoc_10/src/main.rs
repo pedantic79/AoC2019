@@ -32,30 +32,26 @@ impl Asteroid {
     fn get_direction(&self, other: &Self) -> Direction {
         let dx = other.x - self.x;
         let dy = other.y - self.y;
-        let gcd = dx.gcd(&dy).abs();
+        let gcd = dx.gcd(&dy);
 
         Direction(dx / gcd, dy / gcd)
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct Direction(Int, Int);
-
-impl PartialOrd for Direction {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.angle().partial_cmp(&other.angle())
-    }
-}
 
 impl Direction {
     fn angle(&self) -> f64 {
         let radians = (self.1 as f64).atan2(self.0 as f64) - PI / 2.0;
-        if radians.is_sign_negative() {
-            radians + PI * 2.0
-        } else {
-            radians
-        }
+        radians.rem_euclid(PI * 2.0)
     }
+}
+
+fn f64_total_ordering(f: f64) -> i64 {
+    let mut bits = f.to_bits() as i64;
+    bits ^= (((bits >> 63) as u64) >> 1) as i64;
+    bits
 }
 
 fn main() {
@@ -72,7 +68,7 @@ fn main() {
     debug_assert_eq!(visible.len(), 344);
 
     let mut v = visible.keys().copied().collect::<Vec<Direction>>();
-    v.sort();
+    v.sort_by_cached_key(|dir| f64_total_ordering(dir.angle()));
 
     let v = visible.get_vec_mut(&v[199]).unwrap();
     v.sort_by_key(|x| x.distance(&station));
