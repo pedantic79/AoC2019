@@ -1,8 +1,11 @@
+use arrayvec::ArrayVec;
 use itertools::{izip, Itertools};
 use num::Integer;
-use std::{cmp::Ordering, fs::File, io::Read, num::ParseIntError, slice::from_raw_parts_mut};
+use rayon::prelude::{ParallelBridge, ParallelIterator};
+use std::{cmp::Ordering, fs::File, io::Read, num::ParseIntError};
 
 const DIMENSIONS: usize = 3;
+const AXISES_DIM: usize = 4;
 
 trait PhysicsSimulation {
     type Body;
@@ -13,10 +16,16 @@ trait PhysicsSimulation {
         for indices in (0..len).combinations(2) {
             assert_eq!(indices.len(), 2);
             assert_ne!(indices[0], indices[1]);
+            assert!(indices[0] < len);
+            assert!(indices[1] < len);
+
+            // SAFETY: combinations guarantee that the indices are never the same. So it is safe to have
+            // two mutable references into the Vec. We'll double check that indices only has two values
+            // and that they are not the same before proceeding.
             let (one, two) = unsafe {
                 let ptr = self.data().as_mut_ptr();
-                let one = &mut from_raw_parts_mut(ptr.offset(indices[0]), 1)[0];
-                let two = &mut from_raw_parts_mut(ptr.offset(indices[1]), 1)[0];
+                let one = &mut *ptr.offset(indices[0]);
+                let two = &mut *ptr.offset(indices[1]);
                 (one, two)
             };
             Self::update_position(one, two);
@@ -53,7 +62,7 @@ impl SpaceBody {
             self.velocity.iter_mut(),
             other.velocity.iter_mut(),
         ) {
-            match pos_a.cmp(&pos_b) {
+            match pos_a.cmp(pos_b) {
                 Ordering::Equal => (),
                 Ordering::Less => {
                     *vol_a += 1;
@@ -87,7 +96,7 @@ impl SpaceBody {
 }
 
 struct SpaceSystem {
-    bodies: Vec<SpaceBody>,
+    bodies: ArrayVec<SpaceBody, AXISES_DIM>,
 }
 
 impl PhysicsSimulation for SpaceSystem {
@@ -130,24 +139,22 @@ impl SpaceSystem {
         self.bodies.iter().map(|m| m.energy()).sum()
     }
 
-    fn to_axes(&self) -> Vec<SingleAxis> {
-        (0..DIMENSIONS)
-            .map(|dimension| {
-                let v = self
-                    .bodies
-                    .iter()
-                    .map(|sb| (sb.location[dimension], sb.velocity[dimension]))
-                    .collect::<Vec<(i32, i32)>>();
+    fn to_axes(&self) -> impl Iterator<Item = SingleAxis> + '_ {
+        (0..DIMENSIONS).map(move |dimension| {
+            let v = self
+                .bodies
+                .iter()
+                .map(|sb| (sb.location[dimension], sb.velocity[dimension]))
+                .collect();
 
-                SingleAxis::new(&v)
-            })
-            .collect()
+            SingleAxis::new(v)
+        })
     }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 struct SingleAxis {
-    axis: Vec<(i32, i32)>,
+    axis: ArrayVec<(i32, i32), AXISES_DIM>,
 }
 
 impl PhysicsSimulation for SingleAxis {
@@ -177,10 +184,8 @@ impl PhysicsSimulation for SingleAxis {
 }
 
 impl SingleAxis {
-    fn new(axis: &[(i32, i32)]) -> Self {
-        Self {
-            axis: axis.to_vec(),
-        }
+    fn new(axis: ArrayVec<(i32, i32), AXISES_DIM>) -> Self {
+        Self { axis }
     }
 
     fn count_cycle(&self) -> usize {
@@ -237,11 +242,11 @@ fn main() {
     println!("total_energy: {}", energy);
     debug_assert_eq!(energy, 10944);
 
-    let axes = SpaceSystem::new(&v).to_axes();
-    let cycles = axes
-        .iter()
+    let cycles = SpaceSystem::new(&v)
+        .to_axes()
+        .par_bridge()
         .map(|axis| axis.count_cycle())
-        .fold1(|acc, x| acc.lcm(&x))
+        .reduce_with(|acc, x| acc.lcm(&x))
         .unwrap();
 
     println!("Repeats in {} cycles", cycles);
@@ -260,7 +265,7 @@ mod test {
         space_objects.step();
 
         assert_eq!(
-            space_objects.bodies,
+            &space_objects.bodies,
             &[
                 SpaceBody {
                     location: [2, -1, 1],
@@ -278,12 +283,12 @@ mod test {
                     location: [2, 2, 0],
                     velocity: [-1, -3, 1]
                 },
-            ]
+            ][..]
         );
 
         space_objects.step();
         assert_eq!(
-            space_objects.bodies,
+            &space_objects.bodies,
             &[
                 SpaceBody {
                     location: [5, -3, -1],
@@ -301,12 +306,12 @@ mod test {
                     location: [1, -4, 2],
                     velocity: [-1, -6, 2]
                 },
-            ]
+            ][..]
         );
 
         space_objects.step_n(2770);
         assert_eq!(
-            space_objects.bodies,
+            &space_objects.bodies,
             &[
                 SpaceBody {
                     location: [-1, 0, 2],
@@ -324,7 +329,7 @@ mod test {
                     location: [3, 5, -1],
                     velocity: [0, 0, 0]
                 },
-            ]
+            ][..]
         );
     }
 
