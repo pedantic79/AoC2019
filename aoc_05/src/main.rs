@@ -2,7 +2,13 @@ use std::fs::File;
 use std::io::Read;
 
 fn main() {
-    let mut file = File::open("input.txt").expect("unable to open input.txt");
+    let mut file = File::open(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()),
+        )
+        .join("input.txt"),
+    )
+    .expect("unable to open input.txt");
     let v = read_input(&mut file).expect("parse error");
 
     let output = run_program(&v, 1);
@@ -106,13 +112,13 @@ fn run_ops(instructions: &[i32], input: i32, return_pos: usize) -> i32 {
             "07" => {
                 // less-than
                 let v = get_multiple(&opcodes, modes, pos, 3);
-                opcodes[v[2]] = if opcodes[v[0]] < opcodes[v[1]] { 1 } else { 0 };
+                opcodes[v[2]] = i32::from(opcodes[v[0]] < opcodes[v[1]]);
                 4
             }
             "08" => {
                 // equal
                 let v = get_multiple(&opcodes, modes, pos, 3);
-                opcodes[v[2]] = if opcodes[v[0]] == opcodes[v[1]] { 1 } else { 0 };
+                opcodes[v[2]] = i32::from(opcodes[v[0]] == opcodes[v[1]]);
                 4
             }
             "99" => {

@@ -175,13 +175,13 @@ impl Computer {
                     // less-than
                     let a = self.read_memory(self.next_pc(), mode_a);
                     let b = self.read_memory(self.next_pc(), mode_b);
-                    self.write_memory(mode_c, if a < b { 1 } else { 0 });
+                    self.write_memory(mode_c, i64::from(a < b));
                 }
                 8 => {
                     // equal
                     let a = self.read_memory(self.next_pc(), mode_a);
                     let b = self.read_memory(self.next_pc(), mode_b);
-                    self.write_memory(mode_c, if a == b { 1 } else { 0 });
+                    self.write_memory(mode_c, i64::from(a == b));
                 }
                 9 => {
                     let a = self.read_memory(self.next_pc(), mode_a);
@@ -214,13 +214,6 @@ pub fn read_input<R: Read>(input: &mut R) -> Result<Vec<Intcode>, String> {
         .collect::<Result<_, _>>()
 }
 
-pub fn run_program(instructions: &[Intcode], input: Intcode) -> Intcode {
-    let mut c = Computer::new(instructions);
-    c.input_add(input);
-    c.run();
-    c.output_get()
-}
-
 #[allow(dead_code)]
 pub fn run_program_n(instructions: &[Intcode], input: &[Intcode]) -> Intcode {
     let mut c = Computer::new(instructions);
@@ -232,6 +225,12 @@ pub fn run_program_n(instructions: &[Intcode], input: &[Intcode]) -> Intcode {
 #[cfg(test)]
 mod test {
     use super::*;
+    pub fn run_program(instructions: &[Intcode], input: Intcode) -> Intcode {
+        let mut c = Computer::new(instructions);
+        c.input_add(input);
+        c.run();
+        c.output_get()
+    }
 
     #[test]
     fn parsing_file() {

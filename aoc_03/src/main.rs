@@ -113,7 +113,13 @@ fn read_input<R: std::io::Read>(input: &mut R) -> Result<Vec<Vec<DirectionalVect
 }
 
 fn main() {
-    let mut file = File::open("input.txt").expect("unable to open input.txt");
+    let mut file = File::open(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()),
+        )
+        .join("input.txt"),
+    )
+    .expect("unable to open input.txt");
     let (intersection, steps) = process(&mut file).unwrap();
 
     assert_eq!(intersection, Grid(24, 1650));

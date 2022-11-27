@@ -4,7 +4,13 @@ use std::io::Read;
 use std::iter::successors;
 
 fn main() {
-    let mut file = File::open("input.txt").expect("unable to open input.txt");
+    let mut file = File::open(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()),
+        )
+        .join("input.txt"),
+    )
+    .expect("unable to open input.txt");
     let hm = read_input(&mut file).unwrap();
 
     let dist = total_distance(&hm);
@@ -44,7 +50,7 @@ fn path<'a>(
     solar_system: &'a HashMap<String, String>,
 ) -> impl Iterator<Item = String> + 'a {
     successors(Some(node.to_string()), move |current| {
-        let s: &String = &current;
+        let s: &String = current;
         solar_system.get(s).cloned()
     })
     .skip(1)
@@ -57,7 +63,7 @@ fn distance(node: &str, solar_system: &HashMap<String, String>) -> usize {
 fn total_distance(solar_system: &HashMap<String, String>) -> usize {
     solar_system
         .keys()
-        .map(|object| distance(object, &solar_system))
+        .map(|object| distance(object, solar_system))
         .sum()
 }
 

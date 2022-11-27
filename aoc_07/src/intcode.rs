@@ -143,13 +143,13 @@ impl Computer {
                     // less-than
                     let a = self.read_memory(self.next_pc(), mode_a);
                     let b = self.read_memory(self.next_pc(), mode_b);
-                    self.write_memory(mode_c, if a < b { 1 } else { 0 });
+                    self.write_memory(mode_c, i128::from(a < b));
                 }
                 8 => {
                     // equal
                     let a = self.read_memory(self.next_pc(), mode_a);
                     let b = self.read_memory(self.next_pc(), mode_b);
-                    self.write_memory(mode_c, if a == b { 1 } else { 0 });
+                    self.write_memory(mode_c, i128::from(a == b));
                 }
                 99 => {
                     self.halted = true;

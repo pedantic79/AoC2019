@@ -93,7 +93,7 @@ impl Robot {
     }
 
     fn run_robot(&mut self, v: &[Intcode]) {
-        let mut c = Computer::new(&v);
+        let mut c = Computer::new(v);
 
         'main: loop {
             let color = loop {
@@ -166,7 +166,13 @@ fn draw_output(image: &HashMap<Point, Color>) {
 }
 
 fn main() {
-    let mut file = File::open("input.txt").expect("unable to open input.txt");
+    let mut file = File::open(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()),
+        )
+        .join("input.txt"),
+    )
+    .expect("unable to open input.txt");
     let v = read_input(&mut file).expect("parse error");
 
     let mut r = Robot::new();

@@ -85,9 +85,8 @@ mod test {
 
     #[test]
     fn test_digits() {
-        for case in [(111_123, vec![1, 1, 1, 1, 2, 3])].iter() {
-            assert_eq!(digits(case.0), case.1);
-        }
+        let case = &(111_123, vec![1, 1, 1, 1, 2, 3]);
+        assert_eq!(digits(case.0), case.1);
     }
 
     #[test]

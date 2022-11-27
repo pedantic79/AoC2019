@@ -3,7 +3,13 @@ use std::io::Read;
 use std::iter::successors;
 
 fn main() {
-    let mut file = File::open("input.txt").expect("unable to open input.txt");
+    let mut file = File::open(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()),
+        )
+        .join("input.txt"),
+    )
+    .expect("unable to open input.txt");
     let v = read_input(&mut file).expect("parse error");
 
     let total: u32 = v.iter().filter_map(|&x| fuel(x)).sum();

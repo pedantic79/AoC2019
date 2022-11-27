@@ -1,12 +1,17 @@
-use bytecount::naive_count_32;
-use itertools::Itertools;
+use bytecount::count as naive_count_32;
 use std::fs::File;
 
 const WIDTH: usize = 25;
 const HEIGHT: usize = 6;
 
 fn main() {
-    let mut file = File::open("input.txt").expect("unable to open input.txt");
+    let mut file = File::open(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()),
+        )
+        .join("input.txt"),
+    )
+    .expect("unable to open input.txt");
     let layers = read_input(&mut file).expect("parse error");
 
     {
@@ -24,7 +29,7 @@ fn main() {
     let merged = layers
         .into_iter()
         .rev()
-        .fold1(|mut acc, layer| {
+        .reduce(|mut acc, layer| {
             merge(&mut acc, &layer);
             acc
         })

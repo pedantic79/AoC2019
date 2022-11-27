@@ -4,7 +4,13 @@ use intcode::{Computer, Intcode};
 use std::{fs::File, io::Read};
 
 fn main() {
-    let mut file = File::open("input.txt").expect("unable to open input.txt");
+    let mut file = File::open(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()),
+        )
+        .join("input.txt"),
+    )
+    .expect("unable to open input.txt");
     let v = read_input(&mut file).expect("parse error");
 
     let max_amp = permute::permute(vec![0, 1, 2, 3, 4])

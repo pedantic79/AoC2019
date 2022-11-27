@@ -55,7 +55,13 @@ fn f64_total_ordering(f: f64) -> i64 {
 }
 
 fn main() {
-    let mut file = std::fs::File::open("input.txt").expect("unable to open input.txt");
+    let mut file = std::fs::File::open(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()),
+        )
+        .join("input.txt"),
+    )
+    .expect("unable to open input.txt");
     let asteroids = read_input(&mut file).unwrap();
 
     let (station, mut visible) = asteroids

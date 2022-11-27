@@ -49,7 +49,13 @@ impl fmt::Display for Screen {
 }
 
 fn main() {
-    let mut file = File::open("input.txt").expect("unable to open input.txt");
+    let mut file = File::open(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()),
+        )
+        .join("input.txt"),
+    )
+    .expect("unable to open input.txt");
     let mut v = read_input(&mut file).expect("parse error");
 
     let max_y = v[60] + 1;
@@ -87,7 +93,7 @@ fn main() {
                 }
             }
             ComputerStatus::WaitingForInput => {
-                std::thread::sleep(std::time::Duration::from_millis(100));
+                // std::thread::sleep(std::time::Duration::from_millis(5));
                 println!("{}", screen);
                 let mv = match ball_x.cmp(&cursor_x) {
                     Ordering::Equal => 0,

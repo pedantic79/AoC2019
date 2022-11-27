@@ -234,7 +234,13 @@ fn read_input<R: Read>(input: &mut R) -> Result<Vec<(i32, i32, i32)>, String> {
 }
 
 fn main() {
-    let mut file = File::open("input.txt").expect("unable to open input.txt");
+    let mut file = File::open(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into()),
+        )
+        .join("input.txt"),
+    )
+    .expect("unable to open input.txt");
     let v = read_input(&mut file).unwrap();
     let mut ss = SpaceSystem::new(&v);
     ss.step_n(1000);
